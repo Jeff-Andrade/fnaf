@@ -1,6 +1,5 @@
 import json
 from flask import Flask, request, render_template
-from threading import Thread
 from datetime import datetime
 
 app = Flask(__name__)
@@ -17,7 +16,6 @@ def upload():
     if not data:
         return {'error': 'JSON inválido ou ausente'}, 400
     try:
-        # extrai campos
         distance = data['distance_m']
         date_str = data['date']
         time_str = data['time']
@@ -26,7 +24,6 @@ def upload():
     except KeyError as e:
         return {'error': f'Campo ausente: {e}'}, 400
 
-    # armazena registro
     records.append({
         'distance': distance,
         'date': date_str,
@@ -37,5 +34,7 @@ def upload():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Recebido via HTTP: {data}")
     return {'status': 'ok'}, 200
 
+# Para execução direta (desativado em ambientes WSGI como Gunicorn)
+# Mantemos apenas para desenvolvimento local
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
