@@ -11,7 +11,7 @@ from RPLCD.i2c import CharLCD
 from PIL import Image
 
 # Configuração da API HTTP
-API_URL = 'http://<IP_DO_SERVIDOR>:5000/upload'  # substitua pelo IP/URL real
+API_URL = 'https://projeto-fnaf.onrender.com/upload'  # substitua pelo IP/URL real
 
 # LCD via I2C
 lcd = CharLCD('PCF8574', 0x27, cols=20, rows=4)
