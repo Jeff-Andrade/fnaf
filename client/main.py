@@ -63,7 +63,7 @@ def get_distance():
 
     duration = end - start
     cm = (duration * 34300) / 2
-    return round(cm / 100, 2)  # metros
+    return round(cm, 1)
 
 # Função de capturar foto e retornar bytes JPEG
 def capture_image_bytes(size=256):
