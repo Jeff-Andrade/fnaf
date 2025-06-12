@@ -117,16 +117,16 @@ def set_color(r, g, b):
 
 def enviar_payload(payload):
     try:
-        print("[📤] Enviando para https://projeto-fnaf.onrender.com/upload")
+        print("[+] Enviando para https://projeto-fnaf.onrender.com/upload")
         response = requests.post('https://projeto-fnaf.onrender.com/upload', json=payload)
-        print(f"[✅] Status: {response.status_code}")
+        print(f"[+] Status: {response.status_code}")
 
         if response.status_code == 200:
-            print("conexão bem-sucedida")
+            print("Conexão bem-sucedida")
 
-        print(f"[📬] Resposta: {response.text}")
+        print(f"[+] Resposta: {response.text}")
     except Exception as e:
-        print(f"[❌] Falha ao enviar: {e}")
+        print(f"[!] Falha ao enviar: {e}")
 
 # Loop principal do sistema
 try:
@@ -136,7 +136,7 @@ try:
             continue  # Pausa a execução se o sistema está em processo de desligamento
 
         distancia = medir_distancia()
-        print(f"[📏] Distância: {distancia} cm")
+        print(f"[+] Distância: {distancia} cm")
         escrever_lcd("Distancia:", f"{distancia:.2f} cm")
 
         if distancia <= 30:
@@ -150,9 +150,9 @@ try:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"foto_{timestamp}.jpg"
                 cv2.imwrite(filename, frame)
-                print(f"[📸] Foto capturada: {filename}")
+                print(f"[+] Foto capturada: {filename}")
             else:
-                print("[⚠️] Falha ao capturar imagem")
+                print("[!] Falha ao capturar imagem")
                 cap.release()
                 continue
             cap.release()
@@ -182,5 +182,5 @@ try:
         time.sleep(1)
 
 except KeyboardInterrupt:
-    print("\n[🛑] Encerrando...")
+    print("\n[X] Encerrando...")
     GPIO.cleanup()  # Libera os GPIOs ao sair do programa
