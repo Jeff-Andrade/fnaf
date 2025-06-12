@@ -18,6 +18,12 @@
 </head>
 <body>
   <h1>Fazbear Entertainment Security</h1>
+
+  <!-- Botão para Logs -->
+  <div class="nav">
+    <a href="{{ url_for('logs') }}" class="btn">Visualizar Logs do Servidor</a>
+  </div>
+
   {% if not records %}
     <p>Nenhum registro enviado ainda.</p>
   {% else %}

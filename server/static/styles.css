@@ -18,6 +18,23 @@ h1 {
   letter-spacing: 2px;
 }
 
+/* Botão de navegação */
+.nav {
+  margin-bottom: 1rem;
+}
+.btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #a020f0;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #a020f0;
+  font-family: 'Basic5';
+  text-shadow: 0 0 5px #a020f0;
+}
+.btn:hover {
+  background: rgba(160, 32, 240, 0.1);
+}
+
 /* Camera Grid */
 .monitor-grid {
   display: grid;

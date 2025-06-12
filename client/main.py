@@ -6,7 +6,6 @@ import cv2                        # Acesso à câmera via OpenCV
 from datetime import datetime     # Para gerar timestamps
 import base64                     # Codificação de imagem para base64
 import requests                   # Enviar dados para um servidor via HTTP POST
-from PIL import Image             # Manipulação de imagem (Pillow)
 import threading                  # Execução paralela de funções
 import os                         # Comandos do sistema (como shutdown)
 
@@ -116,12 +115,15 @@ def set_color(r, g, b):
     GPIO.output(GREEN, g)
     GPIO.output(BLUE, b)
 
-# Envia os dados coletados (distância, imagem) para o servidor
 def enviar_payload(payload):
     try:
         print("[📤] Enviando para https://projeto-fnaf.onrender.com/upload")
         response = requests.post('https://projeto-fnaf.onrender.com/upload', json=payload)
         print(f"[✅] Status: {response.status_code}")
+
+        if response.status_code == 200:
+            print("conexão bem-sucedida")
+
         print(f"[📬] Resposta: {response.text}")
     except Exception as e:
         print(f"[❌] Falha ao enviar: {e}")

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logs de Conexão – Segurança FNAF</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <h1>Logs de Conexão</h1>
+
+  {% if not records %}
+    <p>Nenhum log de conexão disponível.</p>
+  {% else %}
+    <div class="monitor-grid">
+      {% for r in records[::-1] %}
+      <div class="frame">
+        <div class="info" style="flex-direction: column; align-items: flex-start;">
+          <div><strong>Recebido em:</strong> {{ r.received_at }}</div>
+          <div><strong>IP Cliente:</strong> {{ r.client_ip }}</div>
+          <div><strong>User-Agent:</strong> {{ r.user_agent }}</div>
+          <div><strong>Data (payload):</strong> {{ r.date }}</div>
+          <div><strong>Hora (payload):</strong> {{ r.time }}</div>
+          <div><strong>Distância:</strong> {{ r.distance }} cm</div>
+          <div><strong>Câmera:</strong> {{ r.camera }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <p style="margin-top:2rem;">
+    <a href="{{ url_for('index') }}" style="color:#a020f0; text-decoration:underline;">
+      ← Voltar à Central de Segurança
+    </a>
+  </p>
+</body>
+</html>
