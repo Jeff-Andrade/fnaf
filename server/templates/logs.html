@@ -9,6 +9,7 @@
 <body>
   <h1>Logs de Conexão</h1>
 
+  <!-- container sempre presente -->
   <div class="monitor-grid" id="log-container"></div>
 
   <p style="margin-top:2rem;">
@@ -39,26 +40,30 @@
       return f;
     }
 
-    // renderiza os logs iniciais (reversa)
-    initial.slice().reverse().forEach(r => container.appendChild(renderLog(r)));
+    // mensagem inicial se vazio
+    if (initial.length === 0) {
+      const msg = document.createElement('p');
+      msg.textContent = 'Nenhum log de conexão disponível.';
+      msg.style.color = '#a020f0';
+      container.appendChild(msg);
+    } else {
+      initial.slice().reverse().forEach(r => container.appendChild(renderLog(r)));
+    }
 
     async function fetchLogs() {
-      try {
-        const resp = await fetch('{{ url_for("api_logs") }}');
-        const all  = await resp.json();
-        if (all.length > logsCount) {
-          const novos = all.slice(logsCount);
-          novos.reverse().forEach(r => {
-            container.insertBefore(renderLog(r), container.firstChild);
-            logsCount++;
-          });
-        }
-      } catch (e) {
-        console.error('Erro ao buscar logs:', e);
+      const resp = await fetch('{{ url_for("api_logs") }}');
+      const all  = await resp.json();
+      if (all.length > logsCount) {
+        if (logsCount === 0) container.innerHTML = '';
+        const novos = all.slice(logsCount);
+        novos.reverse().forEach(r => {
+          container.insertBefore(renderLog(r), container.firstChild);
+          logsCount++;
+        });
       }
     }
 
-    setInterval(fetchLogs, 2000);
+    setInterval(fetchLogs, 1000);
   </script>
 </body>
 </html>
