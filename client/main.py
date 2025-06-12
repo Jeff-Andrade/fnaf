@@ -1,167 +1,184 @@
-import os
-import time
-import json
-import base64
-import requests
-import RPi.GPIO as GPIO
-import cv2
-from datetime import datetime
-from io import BytesIO
-from RPLCD.i2c import CharLCD
-from PIL import Image
+# Importação das bibliotecas necessárias
+import RPi.GPIO as GPIO           # Controle dos pinos GPIO do Raspberry Pi
+import time                       # Temporizações (sleep, time)
+from RPLCD.gpio import CharLCD    # Controle do display LCD usando GPIO
+import cv2                        # Acesso à câmera via OpenCV
+from datetime import datetime     # Para gerar timestamps
+import base64                     # Codificação de imagem para base64
+import requests                   # Enviar dados para um servidor via HTTP POST
+from PIL import Image             # Manipulação de imagem (Pillow)
+import threading                  # Execução paralela de funções
+import os                         # Comandos do sistema (como shutdown)
 
-# Configuração da API HTTP
-API_URL = 'https://projeto-fnaf.onrender.com/upload'  # substitua pelo IP/URL real
+# Flags de controle global
+desligando = False               # Indica se o sistema está em processo de desligamento
+lcd_lock = threading.Lock()      # Lock para evitar que duas partes escrevam no LCD ao mesmo tempo
 
-# LCD via I2C
-lcd = CharLCD('PCF8574', 0x27, cols=20, rows=4)
+# Função para escrita segura no LCD com proteção contra conflitos e bug de sincronização
+def escrever_lcd(linha1, linha2=""):
+    with lcd_lock:
+        lcd.clear()
+        time.sleep(0.05)         # Aguarda o LCD processar o clear
+        lcd.write_string(linha1)
+        if linha2:
+            lcd.cursor_pos = (1, 0)
+            lcd.write_string(linha2)
 
-# Usar GPIO.BOARD
-GPIO.setmode(GPIO.BOARD)
-GPIO.setwarnings(False)
+# Inicialização do LCD (24x4)
+lcd = CharLCD(
+    numbering_mode=GPIO.BOARD,
+    cols=24, rows=4,
+    pin_rs=37, pin_e=33,
+    pins_data=[35, 31, 24, 26]
+)
 
-# Mapeamento de pinos físicos
-TRIG = 19
-ECHO = 21
-RED = 23
-GREEN = 5
-BLUE = 31
-BUZZER = 33  # pino do pwm
+# Exibe mensagem de boot
+escrever_lcd("Sistema iniciando...")
+print("[⏳] Aguardando inicialização completa do sistema (5s)...")
+time.sleep(5)
 
-# Setup GPIO
+# Mensagem de build (versão)
+escrever_lcd("build 4")
+time.sleep(2)
+escrever_lcd("")  # Limpa o LCD após mostrar o build
+
+# Configuração dos GPIOs
+GPIO.setmode(GPIO.BOARD)       # Usa a numeração física dos pinos
+GPIO.setwarnings(False)        # Desativa alertas de reuso de pinos
+
+# Definição dos pinos utilizados
+TRIG = 19      # Trigger do sensor ultrassônico
+ECHO = 21      # Echo do sensor ultrassônico
+RED = 23       # LED vermelho
+GREEN = 13     # LED verde
+BLUE = 29      # LED azul
+BUZZ = 36      # Buzzer
+BUTTON = 5     # Botão (também usado para religar o Pi)
+
+# Configuração dos modos dos pinos
 GPIO.setup(TRIG, GPIO.OUT)
 GPIO.setup(ECHO, GPIO.IN)
 GPIO.setup(RED, GPIO.OUT)
 GPIO.setup(GREEN, GPIO.OUT)
 GPIO.setup(BLUE, GPIO.OUT)
-GPIO.setup(BUZZER, GPIO.OUT)
+GPIO.setup(BUZZ, GPIO.OUT)
+GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-# Inicializar PWM no buzzer
-buzzer_pwm = GPIO.PWM(BUZZER, 1000)
-buzzer_pwm.stop()
+# Thread que monitora o botão físico para desligar o sistema
+def monitorar_botao():
+    global desligando
+    while True:
+        if GPIO.input(BUTTON) == GPIO.LOW and not desligando:
+            desligando = True
+            escrever_lcd("Mantenha pressionado", "por 3 segundos")
 
-# Estado inicial\ ncurrent_zone = -1
-last_zone = -1
-zone_start_time = 0
+            start_time = time.time()
+            while GPIO.input(BUTTON) == GPIO.LOW:
+                if time.time() - start_time >= 3:
+                    # Se segurou por 3s, desliga o sistema com segurança
+                    set_color(0, 0, 0)
+                    GPIO.output(BUZZ, 0)
+                    escrever_lcd("")
+                    time.sleep(1)
+                    os.system("sudo shutdown -h now")
+                    return
+                time.sleep(0.1)
 
-lcd.clear()
-lcd.cursor_pos = (0, 0)
-lcd.write_string("Sensor Ativo")
+            # Se soltou antes de 3s, cancela o desligamento
+            escrever_lcd("Operacao cancelada")
+            time.sleep(2)
+            escrever_lcd("")
+            desligando = False
+        time.sleep(0.2)
 
-# Função de medir distância
-def get_distance():
+# Inicia a thread que monitora o botão
+threading.Thread(target=monitorar_botao, daemon=True).start()
+
+# Mede a distância com o sensor ultrassônico
+def medir_distancia():
     GPIO.output(TRIG, False)
-    time.sleep(0.02)
+    time.sleep(0.05)
     GPIO.output(TRIG, True)
     time.sleep(0.00001)
     GPIO.output(TRIG, False)
 
     while GPIO.input(ECHO) == 0:
-        start = time.time()
+        pulse_start = time.time()
     while GPIO.input(ECHO) == 1:
-        end = time.time()
+        pulse_end = time.time()
 
-    duration = end - start
-    cm = (duration * 34300) / 2
-    return round(cm, 1)
+    pulse_duration = pulse_end - pulse_start
+    return round(pulse_duration * 17150, 2)
 
-# Função de capturar foto e retornar bytes JPEG
-def capture_image_bytes(size=256):
-    cam = cv2.VideoCapture(0)
-    time.sleep(0.5)
-    ret, frame = cam.read()
-    cam.release()
-    if not ret:
-        raise RuntimeError("Falha ao capturar imagem.")
+# Define a cor do LED RGB
+def set_color(r, g, b):
+    GPIO.output(RED, r)
+    GPIO.output(GREEN, g)
+    GPIO.output(BLUE, b)
 
-    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    w, h = img.size
-    side = min(w, h)
-    left = (w - side) // 2
-    top = (h - side) // 2
-    img = img.crop((left, top, left + side, top + side))
-    img = img.resize((size, size))
-
-    buf = BytesIO()
-    img.save(buf, format="JPEG")
-    return buf.getvalue()
-
-# Função para enviar dados via HTTP POST
-def send_http(distance, image_bytes, camera_id="1"):
-    now = datetime.now()
-    payload = {
-        'distance_m': distance,
-        'date': now.strftime('%d/%m/%Y'),
-        'time': now.strftime('%H:%M:%S'),
-        'camera': camera_id,
-        'image_b64': base64.b64encode(image_bytes).decode('ascii')
-    }
+# Envia os dados coletados (distância, imagem) para o servidor
+def enviar_payload(payload):
     try:
-        resp = requests.post(API_URL, json=payload, timeout=5)
-        if resp.status_code == 200:
-            print(" Dados enviados com sucesso!")
-        else:
-            print(f" Erro HTTP: {resp.status_code} - {resp.text}")
+        print("[📤] Enviando para https://projeto-fnaf.onrender.com/upload")
+        response = requests.post('https://projeto-fnaf.onrender.com/upload', json=payload)
+        print(f"[✅] Status: {response.status_code}")
+        print(f"[📬] Resposta: {response.text}")
     except Exception as e:
-        print(f" Exception no envio HTTP: {e}")
+        print(f"[❌] Falha ao enviar: {e}")
 
+# Loop principal do sistema
 try:
     while True:
-        distance = get_distance()
-        if distance <= 0.30:
-            current_zone = 0
-        elif distance < 0.60:
-            current_zone = 1
-        else:
-            current_zone = 2
+        if desligando:
+            time.sleep(1)
+            continue  # Pausa a execução se o sistema está em processo de desligamento
 
-        if current_zone != last_zone:
-            zone_start_time = time.time()
-            last_zone = current_zone
+        distancia = medir_distancia()
+        print(f"[📏] Distância: {distancia} cm")
+        escrever_lcd("Distancia:", f"{distancia:.2f} cm")
 
-        if time.time() - zone_start_time >= 0.1:
-            if current_zone == 0:
-                lcd.cursor_pos = (1, 0)
-                lcd.write_string("Obj extr. proximo    ")
-                GPIO.output(RED, True)
-                GPIO.output(GREEN, False)
-                GPIO.output(BLUE, False)
-                buzzer_pwm.ChangeFrequency(100)
-                buzzer_pwm.start(50)
-                lcd.cursor_pos = (3, 0)
-                lcd.write_string("!!!!!!!!!!!!!!!!!!!!")
-                img_bytes = capture_image_bytes()
-                send_http(distance, img_bytes)
+        if distancia <= 30:
+            # Distância crítica — aciona alarme e captura imagem
+            set_color(1, 0, 0)
+            GPIO.output(BUZZ, 1)
 
-            elif current_zone == 1:
-                lcd.cursor_pos = (1, 0)
-                lcd.write_string("Obj aproximando     ")
-                GPIO.output(RED, True)
-                GPIO.output(GREEN, True)
-                GPIO.output(BLUE, False)
-                lcd.cursor_pos = (3, 0)
-                lcd.write_string("                    ")
-                for _ in range(2):
-                    buzzer_pwm.ChangeFrequency(1000)
-                    buzzer_pwm.start(50)
-                    time.sleep(0.25)
-                    buzzer_pwm.stop()
-                    time.sleep(0.25)
+            cap = cv2.VideoCapture(0)
+            ret, frame = cap.read()
+            if ret:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"foto_{timestamp}.jpg"
+                cv2.imwrite(filename, frame)
+                print(f"[📸] Foto capturada: {filename}")
             else:
-                lcd.cursor_pos = (1, 0)
-                lcd.write_string("Sistema normal      ")
-                GPIO.output(RED, False)
-                GPIO.output(GREEN, False)
-                GPIO.output(BLUE, True)
-                buzzer_pwm.stop()
-                lcd.cursor_pos = (3, 0)
-                lcd.write_string("                    ")
+                print("[⚠️] Falha ao capturar imagem")
+                cap.release()
+                continue
+            cap.release()
 
-        lcd.cursor_pos = (2, 0)
-        lcd.write_string(f"Dist: {distance:.2f} m     ")
-        time.sleep(0.1)
+            with open(filename, 'rb') as img_file:
+                img_b64 = base64.b64encode(img_file.read()).decode('utf-8')
+
+            payload = {
+                'distance_m': distancia,
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'time': datetime.now().strftime('%H:%M:%S'),
+                'camera': 'USB',
+                'image_b64': img_b64
+            }
+
+            threading.Thread(target=enviar_payload, args=(payload,)).start()
+
+        elif distancia <= 60:
+            # Alerta moderado — LED amarelo
+            set_color(1, 1, 0)
+            GPIO.output(BUZZ, 0)
+        else:
+            # Distância segura — LED azul
+            set_color(0, 0, 1)
+            GPIO.output(BUZZ, 0)
+
+        time.sleep(1)
 
 except KeyboardInterrupt:
-    buzzer_pwm.stop()
-    lcd.clear()
-    GPIO.cleanup()
+    print("\n[🛑] Encerrando...")
+    GPIO.cleanup()  # Libera os GPIOs ao sair do programa
