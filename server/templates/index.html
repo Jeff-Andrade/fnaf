@@ -1,25 +1,20 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Monitor RasPi - Segurança FNAF</title>
-  <!-- CSS separada -->
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
     @font-face {
       font-family: 'Basic5';
       src: url("{{ url_for('static', filename='Basic5.ttf') }}") format('truetype');
-      font-weight: normal;
-      font-style: normal;
     }
   </style>
 </head>
 <body>
   <h1>Fazbear Entertainment Security</h1>
 
-  <!-- Botão para Logs -->
   <div class="nav">
     <a href="{{ url_for('logs') }}" class="btn">Visualizar Logs do Servidor</a>
   </div>
@@ -27,19 +22,57 @@
   {% if not records %}
     <p>Nenhum registro enviado ainda.</p>
   {% else %}
-    <div class="monitor-grid">
-      {% for r in records[::-1] %}
-      <div class="frame">
-        <img src="data:image/jpeg;base64,{{ r['image_b64'] }}" alt="Cam {{ r['camera'] }}">
-        <div class="info">
-          <div>Data: {{ r['date'] }}</div>
-          <div>Hora: {{ r['time'] }}</div>
-          <div>Dist: {{ r['distance'] }} cm</div>
-          <div>Cam: {{ r['camera'] }}</div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
+    <div class="monitor-grid"></div>
   {% endif %}
+
+  <script>
+    const grid       = document.querySelector('.monitor-grid');
+    // inicializa com os registros existentes
+    const initial    = {{ records|tojson }};
+    let renderedCount = initial.length;
+
+    function renderFrame(r) {
+      const f = document.createElement('div');
+      f.className = 'frame';
+      f.innerHTML = `
+        <img src="data:image/jpeg;base64,${r.image_b64}" alt="Cam ${r.camera}">
+        <div class="info">
+          <div>Data: ${r.date}</div>
+          <div>Hora: ${r.time}</div>
+          <div>Dist: ${r.distance} cm</div>
+          <div>Cam: ${r.camera}</div>
+        </div>
+      `;
+      return f;
+    }
+
+    // renderiza todos existentes na carga inicial (em ordem reversa)
+    initial.slice().reverse().forEach(r => grid.appendChild(renderFrame(r)));
+
+    async function fetchNew() {
+      try {
+        const resp = await fetch('{{ url_for("api_records") }}');
+        const all  = await resp.json();
+        // detecta novos itens
+        if (all.length > renderedCount) {
+          const novos = all.slice(renderedCount);
+          // prepend em ordem do mais recente primeiro
+          novos.reverse().forEach(r => {
+            grid.insertBefore(renderFrame(r), grid.firstChild);
+            renderedCount++;
+          });
+          // opcional: mantém no máximo 12 frames
+          while (grid.children.length > 12) {
+            grid.removeChild(grid.lastChild);
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao buscar registros:', e);
+      }
+    }
+
+    // polling a cada 2s
+    setInterval(fetchNew, 2000);
+  </script>
 </body>
 </html>

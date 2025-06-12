@@ -1,7 +1,7 @@
 import base64
 from io import BytesIO
 from PIL import Image
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify
 from datetime import datetime
 
 app = Flask(__name__)
@@ -18,35 +18,27 @@ def upload():
     if not data:
         return {'error': 'JSON inválido ou ausente'}, 400
     try:
-        distance   = data['distance_m']
-        date_str   = data['date']
-        time_str   = data['time']
-        camera     = data['camera']
-        image_b64  = data['image_b64']
+        distance  = data['distance_m']
+        date_str  = data['date']
+        time_str  = data['time']
+        camera    = data['camera']
+        image_b64 = data['image_b64']
     except KeyError as e:
         return {'error': f'Campo ausente: {e}'}, 400
 
-    # 1) Decodifica base64 para bytes
+    # decodifica & redimensiona
     try:
-        img_data = base64.b64decode(image_b64)
-        img = Image.open(BytesIO(img_data))
+        img = Image.open(BytesIO(base64.b64decode(image_b64)))
+        img = img.resize((320, 240))
+        buf = BytesIO()
+        img.save(buf, format='JPEG')
+        resized_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
     except Exception as e:
-        return {'error': f'Erro ao decodificar imagem: {e}'}, 400
+        return {'error': f'Erro ao processar imagem: {e}'}, 400
 
-    # 2) Redimensiona para 320×240 (QVGA)
-    img = img.resize((320, 240))
-
-    # 3) Re-encoda para JPEG base64
-    buffer = BytesIO()
-    img.save(buffer, format='JPEG')
-    resized_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-    # Extrai infos do cliente
     client_ip  = request.remote_addr
     user_agent = request.headers.get('User-Agent', 'desconhecido')
-
-    # Armazena o registro com a imagem redimensionada
-    records.append({
+    record = {
         'distance':     distance,
         'date':         date_str,
         'time':         time_str,
@@ -55,18 +47,25 @@ def upload():
         'received_at':  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'client_ip':    client_ip,
         'user_agent':   user_agent
-    })
+    }
+    records.append(record)
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Recebido de {client_ip} – {user_agent}: "
-          f"Cam={camera}, Dist={distance}cm")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Recebido de {client_ip}: Cam={camera}, Dist={distance}cm")
     return {'status': 'ok'}, 200
 
+# rota que expõe JSON com todos os registros
+@app.route('/api/records', methods=['GET'])
+def api_records():
+    return jsonify(records)
 
 @app.route('/logs', methods=['GET'])
 def logs():
-    # Exibe os registros detalhados
     return render_template('logs.html', records=records)
 
-# Para execução direta em dev
+# rota que expõe JSON com todos os logs (mesmos dados)
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    return jsonify(records)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
