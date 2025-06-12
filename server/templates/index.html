@@ -1,26 +1,39 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Monitor RasPi - Segurança</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitor RasPi - Segurança FNAF</title>
+  <!-- CSS separada -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    @font-face {
+      font-family: 'Basic5';
+      src: url("{{ url_for('static', filename='Basic5.ttf') }}") format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+  </style>
 </head>
 <body>
-    <h1>📹 Central de Segurança</h1>
-    {% for r in records[::-1] %}
-    <div class="frame">
-        <img src="data:image/jpeg;base64,{{ r['image_b64'] }}" alt="foto">
-        <div class="info">
-            <div>Data: {{ r['date'] }}</div>
-            <div>Hora: {{ r['time'] }}</div>
-            <div>Dist: {{ r['distance'] }} cm</div>
-            <div>Cam: {{ r['camera'] }}</div>
-        </div>
-    </div>
-    {% endfor %}
-    {% if not records %}
+  <h1>Fazbear Entertainment Security</h1>
+  {% if not records %}
     <p>Nenhum registro enviado ainda.</p>
-    {% endif %}
+  {% else %}
+    <div class="monitor-grid">
+      {% for r in records[::-1] %}
+      <div class="frame">
+        <img src="data:image/jpeg;base64,{{ r['image_b64'] }}" alt="Cam {{ r['camera'] }}">
+        <div class="info">
+          <div>Data: {{ r['date'] }}</div>
+          <div>Hora: {{ r['time'] }}</div>
+          <div>Dist: {{ r['distance'] }} cm</div>
+          <div>Cam: {{ r['camera'] }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 </body>
 </html>
